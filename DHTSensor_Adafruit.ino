@@ -23,6 +23,7 @@
   ESP8266WiFi.h & WifiUDP.h: https://github.com/ekstrand/ESP8266wifi
 
 *********************************************************************/
+#define DISPLAY_ATTACHED
 
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -135,6 +136,7 @@ void setup()
   DEBUG_PRINTLN("Wire.begin");
 
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
+#ifdef DISPLAY_ATTACHED
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize with the I2C addr 0x3D (for the 128x64)
   DEBUG_PRINTLN("display.begin");
 
@@ -152,6 +154,7 @@ void setup()
   display.setCursor(0, 0);
   display.println("connecting...");
   display.display();
+#endif
 
   timeClient.begin(); // Start the NTP UDP client
   DEBUG_PRINTLN("timeClient.begin");
@@ -161,7 +164,9 @@ void setup()
 
   // drawStuff();
   DEBUG_PRINTLN("setup complete!");
+#ifdef DISPLAY_ATTACHED
   display.clearDisplay();
+#endif
 
   serverUdp.begin(port);
 }
@@ -199,10 +204,10 @@ void loop()
     {
       DEBUG_PRINTLN("Failed to read from DHT sensor!");
     } else {
-      sensor.setTemperature(temperature);
-      sensor.setHumidity(humidity);
     }
 
+      sensor.setTemperature(temperature);
+      sensor.setHumidity(humidity);
     // read the time
     if (WiFi.status() == WL_CONNECTED) // Check WiFi connection status
     {
@@ -242,6 +247,7 @@ void loop()
 
       lastNTPRead = currentMillis;
 
+#ifdef DISPLAY_ATTACHED
       display.clearDisplay();
       display.setTextSize(3);
       display.setTextColor(WHITE);
@@ -275,12 +281,13 @@ void loop()
       // last = millis();
       // DEBUG_PRINT("[MAIN] Free heap: ");
       // DEBUG_PRINTLN(ESP.getFreeHeap(), DEC);
-
+#endif
     }
     else // attempt to connect to wifi again if disconnected
     {
       DEBUG_PRINT("Wifi disconnected");
       lastNTPRead = 0;
+#ifdef DISPLAY_ATTACHED
       display.clearDisplay();
       display.setTextSize(1);
       display.setTextColor(WHITE);
@@ -291,6 +298,7 @@ void loop()
       // display.drawString(0, 24, "Connected.");
       // display.display();
       // delay(1000);
+#endif
     }
 
   }

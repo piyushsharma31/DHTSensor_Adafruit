@@ -49,9 +49,9 @@
 
 DHT dht(DHTPIN, DHTTYPE);
 
-WiFiUDP wifiUdp;
-ESPConfig configuration(/*name*/ "DHT11 Sensor", /*location*/ "Unknown", /*firmware ver*/ "dht11c.13082022.bin", /*SSID*/ "onion", /*SSID key*/ "242374666");
-DHTSensor_Adafruit sensor(/*name*/ "DHT11 sensor", /*pin DHTPIN*/ LED_BUILTIN, /*no. of capabilities*/ 6, configuration.sizeOfEEPROM());
+WiFiUDP serverUdp;
+ESPConfig configuration(/*name*/ "DHT11", /*location*/ "Unknown", /*firmware ver*/ "dht11c.13082022.bin", /*SSID*/ "onion", /*SSID key*/ "242374666");
+DHTSensor_Adafruit sensor(/*name*/ "Temperature", /*pin DHTPIN*/ LED_BUILTIN, /*no. of capabilities*/ 4, configuration.sizeOfEEPROM());
 
 // Define NTP properties
 #define NTP_OFFSET 60 * 60 * 5.5      // In seconds IST = 5.5 + UTC
@@ -63,10 +63,11 @@ WiFiUDP ntpUdp;
 NTPClient timeClient(ntpUdp, NTP_ADDRESS, NTP_OFFSET, NTP_INTERVAL);
 
 String date = "Sunday, 10 Aug 2022";
-String tyme = "10:00 PM";
+String tyme = "10:00";
+String postmeridian = "pm";
 const char *days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec"};
-const char *ampm[] = {"AM", "PM"};
+const char *ampm[] = {"am", "pm"};
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
@@ -162,7 +163,7 @@ void setup()
   DEBUG_PRINTLN("setup complete!");
   display.clearDisplay();
 
-  //wifiUdp.begin(port);
+  serverUdp.begin(port);
 }
 
 unsigned long last = 0;
@@ -174,22 +175,22 @@ int count = 0;
 float temperature = 0;
 float humidity = 0;
 unsigned long currentMillis = millis();
-int dht11ReadInterval = 5000;
+//int dht11ReadInterval = 5000;
 unsigned long lastDHT11Read = 0;
 unsigned long lastNTPRead = 0;
+unsigned long localTime = 0;
 
 void loop()
 {
-  //delay(5000);
 
   currentMillis = millis();
 
   // read temperature and humidity
-  if (currentMillis - lastDHT11Read > dht11ReadInterval)
+  if (currentMillis - lastDHT11Read > sensor.getInterval())
   {
 
     lastDHT11Read = currentMillis;
-    DEBUG_PRINTLN("read temperature and humidity");
+    DEBUG_PRINT("read temperature and humidity..");
 
     // read temperature and humidity
     temperature = dht.readTemperature();
@@ -197,36 +198,33 @@ void loop()
     if (isnan(humidity) || isnan(temperature))
     {
       DEBUG_PRINTLN("Failed to read from DHT sensor!");
+    } else {
+      sensor.setTemperature(temperature);
+      sensor.setHumidity(humidity);
     }
 
     // read the time
     if (WiFi.status() == WL_CONNECTED) // Check WiFi connection status
     {
-      DEBUG_PRINTLN("read time and date");
+      //DEBUG_PRINTLN("read time and date");
       date = ""; // clear the variables
       tyme = "";
+      postmeridian = "";
 
       // update the NTP client and get the UNIX UTC timestamp
       timeClient.update();
-      unsigned long epochTime = timeClient.getEpochTime();
+      localTime = timeClient.getEpochTime();
 
       // convert received time stamp to time_t object
-      time_t local, utc;
-      utc = local = epochTime;
-
-      // Then convert the UTC UNIX timestamp to local time
-      // TimeChangeRule usEDT = {"EDT", Second, Sun, Mar, 2, -300}; // UTC - 5 hours - change this as needed
-      // TimeChangeRule usEST = {"EST", First, Sun, Nov, 2, -360};  // UTC - 6 hours - change this as needed
-      // Timezone usEastern(usEDT, usEST);
-      // local = usEastern.toLocal(utc);
+      time_t local = localTime;
 
       // now format the Time variables into strings with proper names for month, day etc
       date += days[weekday(local) - 1];
       date += ", ";
+      date += day(local);
+      date += " ";
       date += months[month(local) - 1];
       date += " ";
-      date += day(local);
-      date += ", ";
       date += year(local);
 
       // format the time to 12-hour format with AM/PM and no seconds
@@ -236,62 +234,42 @@ void loop()
         tyme += "0";
       tyme += minute(local);
       //tyme += " ";
-      //tyme += ampm[isPM(local)];
+      postmeridian += ampm[isPM(local)];
 
       // Display the date and time
       DEBUG_PRINTLN("");
-      DEBUG_PRINT("Local date: ");
-      DEBUG_PRINT(date);
-      DEBUG_PRINTLN("");
-      DEBUG_PRINT("Local time: ");
-      DEBUG_PRINT(tyme);
+      DEBUG_PRINT("Local date/time: "); DEBUG_PRINT(date); DEBUG_PRINT(", "); DEBUG_PRINT(tyme); DEBUG_PRINT(" "); DEBUG_PRINTLN(postmeridian);
 
       lastNTPRead = currentMillis;
 
       display.clearDisplay();
-      //refreshDisplay();
       display.setTextSize(3);
       display.setTextColor(WHITE);
       display.setCursor(0, 0);
-      display.println(tyme); DEBUG_PRINTLN(tyme);
+      display.print(tyme);
       display.setTextSize(1);
-      display.println(); DEBUG_PRINTLN();
-      display.println(date); DEBUG_PRINTLN(date);
-      //display.display();
-      //delay(5000);
-      //display.clearDisplay();
+      display.print(postmeridian);
+      display.println();display.println();display.println();display.println();
+      display.println(date);
 
       // display temperature
-
-      //display.setTextSize(1);
-      //display.setTextColor(WHITE);
-      //display.setCursor(0, 0);
-      display.println(); DEBUG_PRINTLN();
-      //display.print("Temperature: ");DEBUG_PRINT("Temperature: ");
+      DEBUG_PRINT("Temperature: "); DEBUG_PRINT(temperature); DEBUG_PRINT("C  ");
+      display.println();
       display.setTextSize(2);
-      //display.setCursor(0, 10);
-      display.print(temperature); DEBUG_PRINT(temperature);
+      display.print(temperature);
       display.setTextSize(1);
-      //display.print(" ");DEBUG_PRINT(" ");
       display.cp437(true);
       display.write(167);
-      //display.setTextSize(1);
-      display.print("C"); DEBUG_PRINT("C  ");
-      //display.println();DEBUG_PRINTLN();
+      display.print("C");
 
       // display humidity
-      //display.setTextSize(1);
-      //display.setCursor(0, 35);
-      //display.print("Humidity: ");DEBUG_PRINT("Humidity: ");
+      DEBUG_PRINT("Humidity: "); DEBUG_PRINT(humidity); DEBUG_PRINTLN(" %");
       display.setTextSize(2);
-      //display.setCursor(0, 45);
-      display.print(humidity); DEBUG_PRINT(humidity);
+      display.print(humidity);
       display.setTextSize(1);
-      display.println("%"); DEBUG_PRINTLN(" %");
-      //display.println();DEBUG_PRINTLN();
+      display.println("%");
 
       display.display();
-      //delay(5000);
       // if (millis() - last > heap_print_interval) {
       // DEBUG_PRINTLN();
       // last = millis();
@@ -317,13 +295,13 @@ void loop()
 
   }
 
-  packetSize = wifiUdp.parsePacket();
+  packetSize = serverUdp.parsePacket();
 
   if (packetSize)
   {
 
     // read the packet into packetBuffer
-    int packetLength = wifiUdp.read(packetBuffer, packetSize);
+    int packetLength = serverUdp.read(packetBuffer, packetSize);
     packetBuffer[packetSize] = 0;
 
     // DEBUG_PRINTLN(++count);
@@ -333,9 +311,9 @@ void loop()
     DEBUG_PRINT(" packetLength ");
     DEBUG_PRINT(packetLength);
     DEBUG_PRINT(" from ");
-    DEBUG_PRINT(wifiUdp.remoteIP());
+    DEBUG_PRINT(serverUdp.remoteIP());
     DEBUG_PRINT(", port ");
-    DEBUG_PRINTLN(wifiUdp.remotePort());
+    DEBUG_PRINTLN(serverUdp.remotePort());
 
     // printArray(packetBuffer, packetSize, false);
 
@@ -415,9 +393,9 @@ void loop()
     replyBuffer[1] = highByte(replyBufferSize);
 
     // send a reply, to the IP address and port that sent us the packet we received
-    wifiUdp.beginPacket(wifiUdp.remoteIP(), wifiUdp.remotePort());
-    wifiUdp.write(replyBuffer, replyBufferSize);
-    wifiUdp.endPacket();
+    serverUdp.beginPacket(serverUdp.remoteIP(), serverUdp.remotePort());
+    serverUdp.write(replyBuffer, replyBufferSize);
+    serverUdp.endPacket();
   }
 
   sensor.loop();
